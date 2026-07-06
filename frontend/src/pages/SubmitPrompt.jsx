@@ -2,8 +2,21 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Upload, Cpu } from 'lucide-react';
 
-const API_TOKEN = 'Bearer ec_pat_nJHtFN0nshpwtnmxTLDlOaLrfalEvqiI7ehBMSui-8Q';
-const BASE_URL = 'http://localhost:4321';
+// Ab keys frontend mein nahi -- proxy server inhe apne .env se inject karta hai
+const BASE_URL = 'http://localhost:3001/proxy';
+
+// Title se URL-friendly slug banata hai (SEO ke liye)
+function generateSlug(title) {
+  return title
+    .toString()
+    .toLowerCase()
+    .trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // accents hatayein
+    .replace(/[^a-z0-9\s-]/g, '')   // special characters hatayein
+    .replace(/\s+/g, '-')            // spaces ko - se replace karein
+    .replace(/-+/g, '-')             // multiple -- ko single - banayein
+    .replace(/^-|-$/g, '');          // start/end ke - hatayein
+}
 
 export default function Submit() {
   const navigate = useNavigate();
@@ -44,9 +57,6 @@ export default function Submit() {
 
         const mediaRes = await fetch(`${BASE_URL}/_emdash/api/media`, {
           method: 'POST',
-          headers: {
-            'Authorization': API_TOKEN,
-          },
           body: formData,
         });
 
@@ -54,11 +64,10 @@ export default function Submit() {
           const mediaData = await mediaRes.json();
           console.log('Media upload response:', mediaData);
 
-          // ✅ Exact structure from API: data.items[0].storageKey
-          const item = mediaData?.data?.item 
-  || mediaData?.data?.items?.[0] 
-  || mediaData?.data 
-  || mediaData;
+          const item = mediaData?.data?.item
+            || mediaData?.data?.items?.[0]
+            || mediaData?.data
+            || mediaData;
           const storageKey = item?.storageKey || item?.filename || item?.id;
 
           if (storageKey) {
@@ -75,11 +84,15 @@ export default function Submit() {
         }
       }
 
-      // ── Step 2: Post create ──
+      // ── Step 2: Slug generate karein title se ──
+      const baseSlug = generateSlug(title);
+
+      // ── Step 3: Post create ──
       setStatusMessage('📡 Prompt database mein save ho raha hai...');
 
       const payload = {
         title: title,
+        slug: baseSlug, // ✅ EmDash ko custom slug bhej rahe hain (title-based, SEO friendly)
         status: 'draft',
         data: {
           title: title,
@@ -102,7 +115,6 @@ export default function Submit() {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': API_TOKEN,
         },
         body: JSON.stringify(payload),
       });
@@ -116,12 +128,17 @@ export default function Submit() {
         );
       }
 
+      // ── Step 4: Server ne jo actual slug assign kiya wo check karein ──
+      const createdItem = responseData?.data?.item || responseData?.data || responseData;
+      const finalSlug = createdItem?.slug || baseSlug;
+      console.log('Final slug used by EmDash:', finalSlug);
+
       setStatusMessage('✅ Prompt successfully deploy ho gaya! Redirect ho raha hai...');
       setTitle('');
       setPromptText('');
       setSelectedFile(null);
 
-      setTimeout(() => navigate('/'), 1500);
+      setTimeout(() => navigate(`/prompts/${finalSlug}`), 1200);
 
     } catch (err) {
       console.error('Error:', err);
@@ -162,6 +179,12 @@ export default function Submit() {
                 placeholder="e.g., Cyberpunk Cityscape"
                 className="w-full bg-[#f8fafc] border border-slate-200 text-slate-900 px-4 py-3 rounded-xl text-xs font-medium focus:outline-none focus:border-slate-950 transition-all"
               />
+              {/* Live URL preview — SEO transparency ke liye */}
+              {title.trim() && (
+                <p className="text-[10px] font-mono text-slate-400 truncate">
+                  URL: yourdomain.com/prompts/{generateSlug(title) || '...'}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

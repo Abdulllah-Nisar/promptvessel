@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Copy, Check, Heart, ArrowLeft, Cpu, Sparkles, Zap, Share2 } from 'lucide-react';
 
-const API_TOKEN = 'Bearer ec_pat_nJHtFN0nshpwtnmxTLDlOaLrfalEvqiI7ehBMSui-8Q';
-const BASE_URL = 'http://localhost:4321';
+// Ab keys frontend mein nahi -- proxy server inhe apne .env se inject karta hai
+const BASE_URL = 'http://localhost:3001/proxy';
 
 export default function PromptDetail() {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
 
   const [prompt, setPrompt] = useState(null);
@@ -18,9 +18,9 @@ export default function PromptDetail() {
   const [shared, setShared] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-    fetch(`${BASE_URL}/_emdash/api/content/posts/${id}`, {
-      headers: { 'Accept': 'application/json', 'Authorization': API_TOKEN }
+    if (!slug) return;
+    fetch(`${BASE_URL}/_emdash/api/content/posts/${slug}`, {
+      headers: { 'Accept': 'application/json' }
     })
       .then(res => res.json())
 .then(data => {
@@ -31,12 +31,12 @@ export default function PromptDetail() {
   setPrompt({ data: emdashData, id: item?.id });
 
   const savedLikes = parseInt(emdashData?.likes) || 0;
-  const seed = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const seed = slug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   setLikes(savedLikes > 0 ? savedLikes : 500 + (seed % 499));
   setIsLoading(false);
 })
       .catch(() => { setError('Post load nahi ho saka.'); setIsLoading(false); });
-  }, [id]);
+  }, [slug]);
 
   const copyPrompt = async () => {
     await navigator.clipboard.writeText(promptText);
