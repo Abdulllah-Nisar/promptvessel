@@ -125,3 +125,4 @@ app.listen(PORT, () => {
   console.log(`   EmDash requests -> http://localhost:${PORT}/proxy/... -> ${EMDASH_BASE_URL}`);
   console.log(`   Gemini requests -> http://localhost:${PORT}/api/reverse-prompt`);
 });
+module.exports = app;
