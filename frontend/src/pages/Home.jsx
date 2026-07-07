@@ -4,7 +4,7 @@ import PromptCard from '../components/PromptCard';
 import { Link } from 'react-router-dom';
 
 // Ab keys frontend mein nahi -- proxy server inhe apne .env se inject karta hai
-const BASE_URL = 'http://localhost:3001/proxy';
+const BASE_URL = 'https://promptvessel.vercel.app';
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
