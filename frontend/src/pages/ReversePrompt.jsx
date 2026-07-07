@@ -32,7 +32,7 @@ export default function ReversePrompt() {
 
         // Ab seedha Gemini ko call nahi kar rahe -- apne proxy server ko
         // call kar rahe hain, jo asli key server-side rakhta hai.
-        const response = await fetch('http://localhost:3001/api/reverse-prompt', {
+        const response = await fetch('https://promptvessel.vercel.app/api/reverse-prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

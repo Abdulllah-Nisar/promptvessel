@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Copy, Check, Heart, ArrowLeft, Cpu, Sparkles, Zap, Share2 } from 'lucide-react';
 
 // Ab keys frontend mein nahi -- proxy server inhe apne .env se inject karta hai
-const BASE_URL = 'http://localhost:3001/proxy';
+const BASE_URL = 'https://promptvessel.vercel.app';
 
 export default function PromptDetail() {
   const { slug } = useParams();
