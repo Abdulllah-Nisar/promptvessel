@@ -11,28 +11,30 @@ const EMDASH_BASE_URL = process.env.EMDASH_BASE_URL || 'http://localhost:4321';
 const EMDASH_TOKEN = process.env.EMDASH_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Sirf apni frontend se requests allow karein -- koi aur website ya
-// script ye proxy seedha nahi hit kar sakti. Live jaate waqt is list
-// mein apna production domain (e.g. https://promptvessel.com) add karein.
+// Live aur Local dono origins ko flexible handle karne ke liye array
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
 
+// SUPER FLEXIBLE CORS CONFIGURATION FOR VERCEL
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      // Agar local ho, allowed list mein ho, ya direct hit ho (bina origin ke) toh pass kardein
+      if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.includes('vercel.app')) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
     },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
   })
 );
 
-// Rate limiting -- ek IP se ek waqt mein sirf itni requests allow karta hai,
-// taake koi bhi banda quota khatam karne ke liye website ko spam na kar sake.
+// Rate limiting configurations
 const reversePromptLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minute
-  max: 15, // har IP se 15 minute mein max 15 image-analysis requests
+  windowMs: 15 * 60 * 1000,
+  max: 15,
   message: { error: 'Too many requests. Please wait a few minutes and try again.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -40,44 +42,46 @@ const reversePromptLimiter = rateLimit({
 
 const emdashLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100, // browsing/posts ke liye zyada generous limit
+  max: 100,
   message: { error: 'Too many requests. Please wait a few minutes and try again.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // ─────────────────────────────────────────────────────────────
-// EmDash proxy
-// Frontend calls: http://localhost:3001/proxy/_emdash/api/content/posts
-// This forwards it to: http://localhost:4321/_emdash/api/content/posts
-// and injects the Bearer token server-side -- the frontend never sees it.
-//
-// IMPORTANT: mounted BEFORE express.json(), otherwise the body-parser
-// consumes the request stream and the proxy can't forward it (this would
-// break POST requests like creating a post or uploading media).
+// EmDash Proxy (Both Handling: With /proxy and Direct /_emdash)
 // ─────────────────────────────────────────────────────────────
+const emdashProxyConfig = createProxyMiddleware({
+  target: EMDASH_BASE_URL,
+  changeOrigin: true,
+  onProxyReq: (proxyReq) => {
+    if (EMDASH_TOKEN) {
+      proxyReq.setHeader('Authorization', `Bearer ${EMDASH_TOKEN}`);
+    }
+  },
+});
+
+// A: Agar frontend /proxy/_emdash lagaye
 app.use(
   '/proxy',
   emdashLimiter,
-  createProxyMiddleware({
-    target: EMDASH_BASE_URL,
-    changeOrigin: true,
-    pathRewrite: { '^/proxy': '' },
-    onProxyReq: (proxyReq) => {
-      proxyReq.setHeader('Authorization', `Bearer ${EMDASH_TOKEN}`);
-    },
-  })
+  (req, res, next) => {
+    // Isko clean kar ke target tak bhejein
+    req.url = req.url.replace(/^\/proxy/, '');
+    next();
+  },
+  emdashProxyConfig
 );
 
-// Body parser for the routes below (safe here since /proxy is already handled above)
-app.use(express.json({ limit: '15mb' })); // 15mb to comfortably fit base64 images
+// B: Fallback - Agar frontend direct /_emdash/... hit kare (Vercel par console error ke mutabik)
+app.use('/_emdash', emdashLimiter, emdashProxyConfig);
+
+
+// Body parser for the routes below
+app.use(express.json({ limit: '15mb' }));
 
 // ─────────────────────────────────────────────────────────────
 // Gemini "Reverse Prompt" proxy
-// Frontend sends: { imageBase64, mimeType }
-// Backend attaches the real Gemini key and forwards the request.
-// Response shape is identical to Gemini's raw response, so the frontend's
-// existing parsing logic (result.candidates[0]...) works unchanged.
 // ─────────────────────────────────────────────────────────────
 app.post('/api/reverse-prompt', reversePromptLimiter, async (req, res) => {
   try {
@@ -93,7 +97,7 @@ app.post('/api/reverse-prompt', reversePromptLimiter, async (req, res) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY, // key header mein, query param mein nahi
+          'x-goog-api-key': GEMINI_API_KEY,
         },
         body: JSON.stringify({
           contents: [
@@ -118,11 +122,12 @@ app.post('/api/reverse-prompt', reversePromptLimiter, async (req, res) => {
   }
 });
 
+// Root health checks for fallback routing
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
   console.log(`✅ PromptVessel proxy server running on http://localhost:${PORT}`);
-  console.log(`   EmDash requests -> http://localhost:${PORT}/proxy/... -> ${EMDASH_BASE_URL}`);
-  console.log(`   Gemini requests -> http://localhost:${PORT}/api/reverse-prompt`);
 });
+
 module.exports = app;
