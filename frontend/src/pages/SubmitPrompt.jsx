@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Upload, Cpu } from 'lucide-react';
 
 // Ab keys frontend mein nahi -- proxy server inhe apne .env se inject karta hai
-const BASE_URL = 'http://localhost:3001/proxy';
+const BASE_URL = 'https://promptvessel.vercel.app';
 
 // Title se URL-friendly slug banata hai (SEO ke liye)
 function generateSlug(title) {
